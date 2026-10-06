@@ -284,10 +284,30 @@ def format_account_label(
     disabled: bool = False,
     fetched_at: float | None = None,
 ) -> str:
-    """Build one account row's menu label."""
-    label = f"{alias}  ({email})" if alias else email
+    """Build one account row's menu label: name, session %, and time to reset.
+
+    Columns are tab-separated so the menu can align them with tab stops.
+    """
+    label = alias if alias else _local_part(email)
     marker = "  (disabled)" if disabled else ""
-    return f"{num}  {label}{marker}  {usage_summary(usage, now, fetched_at)}"
+    return f"{num}  {label}{marker}\t{session_summary(usage, now)}"
+
+
+def session_summary(usage: dict | str | None, now: float | None = None) -> str:
+    """Compact session (5h) usage for an account row, e.g. ``42%\t(2h 33m)``.
+
+    An unused session has no ``resets_at`` (its 5h clock starts on the first
+    message), so it reads ``(na)`` rather than a countdown.
+    """
+    if isinstance(usage, str):
+        return usage
+    if now is None:
+        now = time.time()
+    window = usage.get("five_hour") if isinstance(usage, dict) else None
+    if not (isinstance(window, dict) and isinstance(window.get("pct"), (int, float))):
+        return "usage unavailable"
+    countdown = _live_countdown(window, now)
+    return f"{window['pct']:.0f}%\t({countdown or 'na'})"
 
 
 def _local_part(email: str, limit: int = 12) -> str:
@@ -554,6 +574,39 @@ def run(switcher) -> int:
     settings_path = switcher.backup_dir / "menubar_settings.json"
     log_path = switcher.backup_dir / "claude-swap.log"
 
+    def _align_columns(items):
+        """Line up the tab-separated account columns with real tab stops.
+
+        Menu text is proportional, so padding with spaces can't align it: a
+        right-aligned stop lines up the % signs, a left one the reset times.
+        """
+        font = AppKit.NSFont.menuFontOfSize_(0)
+
+        def width(text):
+            return AppKit.NSAttributedString.alloc().initWithString_attributes_(
+                text, {AppKit.NSFontAttributeName: font}
+            ).size().width
+
+        rows = [it for it in items if "\t" in it.title]
+        if not rows:
+            return
+        name_w = max(width(it.title.split("\t")[0]) for it in rows)
+        pct_stop = name_w + 24 + width("100%")
+        style = AppKit.NSMutableParagraphStyle.alloc().init()
+        style.setTabStops_([
+            AppKit.NSTextTab.alloc().initWithTextAlignment_location_options_(
+                AppKit.NSTextAlignmentRight, pct_stop, {}
+            ),
+            AppKit.NSTextTab.alloc().initWithTextAlignment_location_options_(
+                AppKit.NSTextAlignmentLeft, pct_stop + 8, {}
+            ),
+        ])
+        attrs = {AppKit.NSFontAttributeName: font, AppKit.NSParagraphStyleAttributeName: style}
+        for it in rows:
+            it._menuitem.setAttributedTitle_(
+                AppKit.NSAttributedString.alloc().initWithString_attributes_(it.title, attrs)
+            )
+
     class MenuBarApp(rumps.App):
         def __init__(self):
             super().__init__(ICON, quit_button=None)
@@ -769,6 +822,7 @@ def run(switcher) -> int:
                 )
                 item.state = 1 if is_active else 0
                 account_items.append(item)
+            _align_columns(account_items)
             if not account_items:
                 account_items.append(rumps.MenuItem("No managed accounts", callback=None))
 

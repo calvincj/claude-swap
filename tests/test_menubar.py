@@ -225,17 +225,17 @@ def test_usage_summary_scoped_no_pace_marker_on_window_rolled_to_zero():
 
 def test_format_account_label():
     label = menubar.format_account_label(2, "loc@papaya.asia", _USAGE)
-    assert label == "2  loc@papaya.asia  5h 42% · 7d 18% · $ 30%"
+    assert label == "2  loc\t42%\t(na)"
 
 
 def test_format_account_label_with_alias():
     label = menubar.format_account_label(2, "loc@papaya.asia", _USAGE, alias="dev")
-    assert label == "2  dev  (loc@papaya.asia)  5h 42% · 7d 18% · $ 30%"
+    assert label == "2  dev\t42%\t(na)"
 
 
 def test_format_account_label_disabled_marker():
     label = menubar.format_account_label(2, "loc@papaya.asia", _USAGE, disabled=True)
-    assert label == "2  loc@papaya.asia  (disabled)  5h 42% · 7d 18% · $ 30%"
+    assert label == "2  loc  (disabled)\t42%\t(na)"
 
 
 # --- usage logging -------------------------------------------------------------
@@ -617,3 +617,17 @@ class TestFrameworkBuildWarning:
         # The symptom is that everything looks healthy, so say so.
         msg = menubar.framework_build_warning("Python", "uv", "26.6.2")
         assert "logs nothing" in msg
+
+
+def test_session_summary_with_countdown():
+    usage = {
+        "five_hour": {"pct": 42.0, "resets_at": _iso(2 * 3600 + 33 * 60)},
+        "seven_day": {"pct": 18.0, "resets_at": _iso(86400 + 19 * 3600)},
+    }
+    assert menubar.session_summary(usage, _NOW) == "42%\t(2h 33m)"
+
+
+def test_session_summary_unavailable_and_sentinel():
+    assert menubar.session_summary(None) == "usage unavailable"
+    assert menubar.session_summary({"seven_day": {"pct": 8.0}}) == "usage unavailable"
+    assert menubar.session_summary("no credentials") == "no credentials"

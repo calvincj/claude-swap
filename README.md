@@ -1,5 +1,7 @@
 # claude-swap
 
+> Fork of [realiti4/claude-swap](https://github.com/realiti4/claude-swap) by Onur Cetinkol. All credit for the project goes to the original author; this fork only simplifies the menu bar account rows (session % and reset time, aligned).
+
 Multi-account switcher for Claude Code. Easily switch between multiple Claude accounts without logging out, or let it switch for you before you hit a rate limit. Track usage for every account in a live dashboard, and run accounts in parallel. Works with both the Claude Code CLI and the VS Code extension.
 
 ## Installation
